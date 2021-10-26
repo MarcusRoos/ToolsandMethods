@@ -1,0 +1,1100 @@
+
+<!-- saved from url=(0084)https://contattafiles.s3.us-west-1.amazonaws.com/tnt39935/H41UZ6Go10VGsHl/catch.html -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"></head><body><p>
+
+
+  
+  <title>TDD med Catch</title>
+  <style>
+    body {
+      font-family: Arial;
+      background: #ffffff;
+    }
+    pre {
+      font-family: monospace;
+      background: #404040;
+      color: #d0d0d0;
+      padding: 5px;
+    }
+    .green {
+      color: #80ff80;
+      font-weight: bold;
+    }
+    .red {
+      color: #ff8080;
+      font-weight: bold;
+    }
+    .blue {
+      color: #0080ff;
+      font-weight: bold;
+    }
+    .cyan {
+      color: #00ffff;
+      font-weight: bold;
+    }
+    .refactor {
+      color: #b080c0;
+      font-weight: bold;
+    }
+    .assertion {
+      color: #40a0a0;
+    }
+    .expansion {
+      color: #ff8000;
+    }
+    .easteregg {
+      color: inherit;
+      background: inherit;
+      text-decoration: inherit;
+    }
+    .prompt {
+      color: #0080ff;
+      font-weight: bold;
+    }
+    .end.prompt:after {
+      color: #ff8000;
+      content: " \2589";
+    }
+    code {
+      font-family: monospace;
+      padding: 1px;
+      border: 1px solid black;
+    }
+    pre > code {
+      padding: 0px;
+      margin: 0px;
+      border: none;
+    }
+    aside {
+      width: 50%;
+      margin-left: 25%;
+      text-align: center;
+      font-size: small;
+      background: #c0d0b0;
+      border: 1px dashed black;
+    }
+    .commit > a {
+      color: inherit;
+    }
+  </style>
+</p>
+
+<p></p>
+
+<h1>TDD med Catch</h1>
+
+<p>Vi börjar med att skriva testkod "from scratch". Jag vill visa att
+(automatiserad enhets-)testning inte är något magiskt. Det är helt enkelt samma
+gamla vanliga kod som vi alltid skriver. Det enda som är "speciellt" är att det
+har ett specifikt syfte: att använda annan kod som vi har skrivit (eller är på
+väg att skriva) och reagera på olika sätt beroende på om den koden producerar
+förväntade värden eller inte. Dessutom vill jag motivera varför ett verktyg är
+användbart. För om man ska "rulla sin egen" lösning blir det fort ett ganska
+stort projekt om man vill kunna göra lite mer avancerade saker. Även det är
+inget nytt eller specifikt för testning. Det kan ju vara bra att försöka sig på
+en egen implementation av någon vanlig datastruktur, men troligtvis kommer man
+inte att kunna tävla med, till exempel, std::vector.</p>
+
+<p>Låt oss anta att du har skapat en egen implementation av
+faktorial-funktionen.
+(Alltså n! = n × (n-1) × … × 1, t ex 4! = 4 × 3 × 2 × 1 = 24)</p>
+
+<p>factorial.h:</p>
+
+<pre><code>    int factorial(int n);
+</code></pre>
+
+<p>factorial.cpp:</p>
+
+<pre><code>    int factorial(int n) {
+      return n == 0 ?
+        1 :
+        n * factorial(n-1);
+    }
+</code></pre>
+
+<p>Hur testar vi den? I princip behöver det inte vara svårare än att skriva lite
+kod som anropar funktionen och jämför resultatet med förväntade värden.
+Till exempel (01e380d/roll-your-own-test.cpp):</p>
+
+<pre><code>    if (factorial(0) == 1) {
+      cout &lt;&lt; ":)" &lt;&lt; endl;
+    } else {
+      cout &lt;&lt; ":(" &lt;&lt; endl;
+    }
+</code></pre>
+
+<p>Det här fungerar, men det finns en hel del brister.</p>
+
+<ul>
+<li>Om vi vill ha många testfall upprepas samma kod,</li>
+<li>vi får inte enkelt reda på vilket som misslyckades, och</li>
+<li>vi får inte någon information om varför.</li>
+</ul>
+
+<p>Så en liten förbättring vore följande (d57639a/roll-your-own-test.cpp):</p>
+
+<pre><code>    bool test(bool expr, string name = "") {
+      static int casenr = 0;
+
+      cout &lt;&lt; "Test case nr " &lt;&lt; casenr &lt;&lt; " (" &lt;&lt; name &lt;&lt; ")... ";
+      casenr++;
+      if (expr) {
+        cout &lt;&lt; "Great success!" &lt;&lt; endl;
+        return 0; // No error.
+      } else {
+        cout &lt;&lt; "I did some poos, I didn't mean to." &lt;&lt; endl;
+        return 1; // Error.
+      }
+    }
+
+    int main() {
+      bool status = 0;
+      status += test(factorial(0) == 1, "factorial(0) == 1");
+      status += test(factorial(2) == 2);
+      //status += test(factorial(3) == 3, "expected to fail");
+
+      return status;
+    }
+</code></pre>
+
+<p>Nu anropas en gemensam funktion, så att kod återanvänds. Testfallen numreras
+automatiskt, och dessutom går det att ange en beskrivande text. Vi får också en
+slags sammanfattning i och med att ett statusvärde returneras. Min shell är
+till exempel konfigurerad så att den, som del av prompten, alltid skriver ut
+statusen från ett program (i rött) när den inte är 0:</p>
+
+<pre class="output"><span class="prompt">$</span> g++ roll-your-own-test.cpp factorial.cpp &amp;&amp; ./a.out        [master]<span class="cyan">!</span><span class="blue">?</span>
+Test case nr 0 (factorial(0) == 1)... <a class="easteregg" href="http://www.quickmeme.com/img/13/1324dfd733535e58dba70264e6d05c9b70346204d2cacef65abef9c702746d1c.jpg">Great Success!</a>
+Test case nr 1 ()... Great Success!
+Test case nr 2 (expected to fail)... <a class="easteregg" href="https://youtu.be/oQt-anQE5I0?t=1m36s">I did some poos, I didn't mean to.</a>
+<span class="end prompt">$</span>                                                         <span class="red">1</span>[master]<span class="cyan">!</span><span class="blue">?</span>
+</pre>
+
+<p></p><aside>"[master]!?" hör också till prompten och är något min shell skriver ut
+automatiskt. Så det kommer troligtvis inte att se likadant ut hos dig när
+du provkör exemplen. Jag tog med det nu för att visa att det kan vara
+användbart att låta hela testskriptet returnera en statuskod som sammanfattar
+resultatet och visar om allt är OK. Jag kommer inte att ta med det i alla
+exempel.</aside><p></p>
+
+<p>Vi skulle faktiskt kunna åstadkomma ungefär samma sak genom att använda
+standardbibliotekets <code>assert</code>-macro:</p>
+
+<pre><code>    assert(factorial(0) == 1);
+    assert(factorial(3) == 3);  // Expected to fail.
+    assert(factorial(2) == 2);
+</code></pre>
+
+<p>Det här säger minst lika tydligt vad vi menar, och vi får flera saker gratis
+på köpet. Till exempel visas koden automatiskt när ett testfall misslyckas
+(till skillnad från <code>test</code>-funktionen, som bara har en bool och sedan måste
+förlita sig på att få en (förhoppningsvis korrekt) beskrivning av vad
+testfallet gör):</p>
+
+<pre class="output"><span class="prompt">$</span> g++ roll-your-own-test.cpp factorial.cpp &amp;&amp; ./a.out        [master]<span class="cyan">!</span><span class="blue">?</span>
+a.out: roll-your-own-test.cpp:6: int main(): Assertion 'factorial(3) == 3' failed.
+[1]    19679 abort (core dumped)  ./a.out
+<span class="end prompt">$</span>                                                       <span class="red">134</span>[master]<span class="cyan">!</span><span class="blue">?</span>
+</pre>
+
+<p>Med andra ord kommer man ganska långt med <code>assert</code>, och de flesta språk har
+någon mer eller mindre kraftfull variant av samma mekanism. Tyvärr är vi
+ändå ganska långt från ett modernt testverktyg/ramverk. Vi har till och med
+tagit ett steg bakåt genom att testet slutar köras så fort första testfallet
+misslyckas. Det hade varit fint att, som tidigare, kunna köra samtliga
+testfall och få en sammanfattning över hela körningen.</p>
+
+<p>Utöver att köra alla testfall, vilket var möjligt tidigare med
+<code>test</code>-funktionen, vill vi också att de olika testfallen körs <strong>isolerade</strong>,
+utan möjlighet att påverka varandra. Det skulle lätt kunna resultera i akut
+håravfall om resultaten skulle skilja sig beroende på om man byter
+ordningsföljd på olika testfall eller kommenterar ut vissa.</p>
+
+<p>En del av lösningen är att, på ett smidigt sätt, kunna köra kod som olika
+testfall har gemensamt, det man brukar kalla "setup" och "cleanup". Ett
+sätt på vilket olika testfall kan påverka varandra är ju att de modifierar
+några externa resurser, som filsystemet eller någon databas.</p>
+
+<p>Därför är det dags att börja titta på Catch, som är lika enkelt att komma igång
+med, men som även låter oss göra mer avancerade saker så att vi kan hantera mer
+komplexa tester.</p>
+
+<hr>
+
+<h2>Catch</h2>
+
+<p>All kod som behövs för att använda
+<a href="https://github.com/philsquared/Catch">Catch</a> finns i
+<a href="https://github.com/philsquared/Catch/releases/download/v1.10.0/catch.hpp">header-filen</a>.
+Den måste då såklart inkluderas för att användas, vilket innebär att den
+kompileras om varje gång en ändring görs i filen som inkluderar Catch. Detta
+leder då till långa fördröjningar, och för att undvika det gör men helst så att
+man skapar en extra fil (t ex <code>test-main.cpp</code>) med följande innehåll:</p>
+
+<pre><code>    #define CATCH_CONFIG_MAIN
+    #include "catch.hpp"
+</code></pre>
+
+<p>Då genereras automatiskt en <code>main</code>-funktion, och det finns aldrig någon
+anledning att kompilera den filen mer än en gång. Den riktiga testkoden
+läggs i andra filer, vilket vi strax ska titta på.</p>
+
+<p>Du skapar en fil för alla testfall som hör ihop. Den enklaste varianten
+har följande format:</p>
+
+<pre><code>    #include "catch.hpp"
+    TEST_CASE() {
+      REQUIRE(expression);
+    }
+</code></pre>
+
+<p>Testet här går alltså ut på att kolla så att <code>expression</code> är sant. Du "kräver"
+alltså att något påstående om koden ska vara sant, och om det inte är det
+betyder det att funktionen inte fungerar som det är tänkt. Med andra ord fyller
+<code>REQUIRE(expression)</code> samma funktion som <code>assert(expression)</code> tidigare. Till
+exempel (efc4eaf/test-factorial.cpp):</p>
+
+<pre><code>    #include "catch.hpp"
+    #include "factorial.h"
+
+    TEST_CASE() {
+      REQUIRE(factorial(0) == 1);
+      REQUIRE(factorial(4) == 24);
+    }
+</code></pre>
+
+<p>Om du nu kör <code>test-main</code> bör du få ungefär följande resultat:</p>
+
+<pre class="output"><span class="prompt">$</span> ./test-main
+<span class="green">===============================================================================
+All tests passed</span> (2 assertion in 1 test case)
+<span class="end prompt">$</span>
+</pre>
+
+<p>Om vi lägger till <code>REQUIRE(factorial(3) == 3)</code> i mitten får vi</p>
+
+<pre class="output"><span class="blue">$</span> ./test-main
+-------------------------------------------------------------------------------
+Anonymous test case 1
+-------------------------------------------------------------------------------
+test-factorial.cpp:4
+...............................................................................
+
+test-factorial.cpp:6: <span class="red">FAILED:</span>
+  <span class="assertion">REQUIRE( factorial(3) == 3 )</span>
+with expansion:
+  <span class="expansion">6 == 3</span>
+
+<span class="red">===============================================================================</span>
+test cases: 1 | <span class="red">1 failed</span>
+assertions: 2 | <span class="green">1 passed</span> | <span class="red">1 failed</span>
+<span class="end prompt">$</span>
+</pre>
+
+<p>Vi ser alltså precis vilket uttryck som inte var sant, och varför. I det här
+fallet rör det sig om att <code>factorial(3)</code> blir 6, vilket inte är lika med 3.</p>
+
+<p>En till sak som visas nu är vilket "test case" (och i vilken fil den finns) som
+misslyckades. I det här fallet står det <mark>"Anonymous test case 1"</mark>. Det säger oss
+inte så mycket, men det kan vi ändra på! <code>TEST_CASE</code> kan nämligen anropas
+(bland annat) med en beskrivning av testfallet:</p>
+
+<pre><code>    TEST_CASE("Testing factorial with sample values") {
+      REQUIRE(factorial(0) == 1);
+      REQUIRE(factorial(3) == 3);   // Expected to fail.
+      REQUIRE(factorial(5) == 5*4*3*2*1);
+    }
+</code></pre>
+
+<p>Då visas den beskrivningen istället för "Anonymous test case n".</p>
+
+<p></p><aside>Här har jag angett det förväntade värdet som ett uttryck istället för
+ett specifikt, slutgiltigt värde. Det kan vara lite farligt i vissa fall,
+speciellt om man mer eller mindre kopierar implementationen. Om man använder
+implementationen som måttstock är det klart att båda värden stämmer överens,
+men kanske båda är lika fel? I det här fallet är uttrycket själva definitionen
+av vad rätt värde är, och jag tycker dessutom att <code>5*4*3*2*1</code> är tydligare
+(eller mindre "magiskt") än <code>120</code>.</aside><p></p>
+
+<p>En sak som kan verka lite skumt i utskriften ovan är att det står
+<mark>"assertions: 2"</mark>. Borde det inte vara 3? Det stämmer att Catch har
+(den önskvärda) egenskapen att alla testfall körs. Däremot körs inte resten av
+ett testfall när en "assertion" (alltså <code>REQUIRE</code>) har misslyckats.
+<strong>Egentligen</strong> borde nämligen varje assertion i det här fallet vara ett eget
+testfall. Det är i största allmänhet en bra tumregel att försöka dela upp sina
+tester så att man har en assertion per fall - med andra ord, att man prövar ett
+av de påståenden som måste vara sanna för att man ska kunna säga att koden
+beter sig rätt - men här är det extra tydligt att det är mer korrekt så, även
+om det kan kännas lite överdrivet (f7af609/test-factorial.cpp):</p>
+
+<pre><code>    TEST_CASE("factorial(0) is the base case") {
+      REQUIRE(factorial(0) == 1);
+    }
+    TEST_CASE("this is a dummy test - it is expected to fail") {
+      REQUIRE(factorial(3) == 3);
+    }
+    TEST_CASE("factorial(5) relies on several recursive calls") {
+      REQUIRE(factorial(5) == 5*4*3*2*1);
+    }
+</code></pre>
+
+<p>Nu får vi följande resultat.</p>
+
+<pre class="output">-------------------------------------------------------------------------------
+this is a dummy test - it is expected to fail
+-------------------------------------------------------------------------------
+test-factorial.cpp:7
+...............................................................................
+
+test-factorial.cpp:8: <span class="red">FAILED:</span>
+  <span class="assertion">REQUIRE( factorial(3) == 3 )</span>
+with expansion:
+  <span class="expansion">6 == 0</span>
+
+<span class="red">==========================</span><span class="green">=====================================================</span>
+test cases: 3 | <span class="green">2 passed</span> | <span class="red">1 failed</span>
+assertions: 3 | <span class="green">2 passed</span> | <span class="red">1 failed</span>
+<span class="end prompt">$</span>
+</pre>
+
+<p>Nu körs alla testfall, och vi får en meningsfull beskrivning av vilket det
+var som misslyckades. Dessutom ser vi att avgränsaren före sammanfattningen
+(raden med <code>=====...</code>) även fungerar som en slags mätare. Prova att lägga
+till fler fall så kan du se att förhållandet mellan antalet
+<span class="green">=</span> och <span class="red">=</span> är relaterade till
+förhållandet mellan antalet "röda"/"gröna" testfall.</p>
+
+<p>Då är frågan, har vi testat funktionen nu? Hur säkra kan vi vara på att
+den fungerar? Behöver vi några fler testfall? I så fall hur många, och
+vilka? Vi har ju gjort några stickprov, och frågan är om vi får ut något värde
+av att lägga till ett, två, tre fall till. Det finns däremot två egenskaper som alltid ska gälla (för alla n):</p>
+
+<ul>
+<li>n! = n × (n-1)!</li>
+<li>n! ≥ 1</li>
+</ul>
+
+<p>Eftersom funktionen är rekursiv
+- att implementationen är rekursiv är en detalj som vi inte nödvändigtvis vill fokusera på, men själva problembeskrivningen, eller definitionen av vad funktionen ska göra, är också rekursiv - skulle vi kunna testa den på ett liknande sätt som vi skulle konstruera ett matematiskt bevis (ett induktionsbevis):</p>
+
+<pre><code>    TEST_CASE("for n &gt; 0: factorial(n) = n*factorial(n-1)") {
+      int n = rand();
+      REQUIRE(factorial(n) == n*factorial(n-1));
+    }
+</code></pre>
+
+<p>Att <code>n! &gt;= 1 för alla n</code> kan vi uttrycka såhär:</p>
+
+<pre><code>    TEST_CASE("for all n: factorial(n) &gt;= 1") {
+      int n = rand();
+      REQUIRE(factorial(n) &gt;= 1);
+    }
+</code></pre>
+
+<p>Å ena sidan vill vi att testerna ska vara reproducerbara, men å andra sidan
+vill vi att <code>n</code> ska vara något godtyckligt värde. Normalt använder Catch
+<code>srand(0)</code> för att sätta fröet för slumptalsgenereringen, men då blir ju <code>n</code>
+alltid samma sak, vilket får det att kännas lite mindre godtyckligt - vi har i
+och för sig inte valt ett specifikt värde för <code>n</code>, men om det alltid är samma
+kanske det ändå bara fungerar på grund av de egenskaper <code>n</code> har. Med
+<code>--rng-seed 'time'|number</code> kan vi antingen ange ett specifikt frö (som 12345)
+eller använda tiden som frö, vilket innebär att olika tal kommer att slumpas
+fram vid olika tillfällen. Som tur är gör Catch det ändå enkelt att även
+reproducera en körning, för det frö som faktiskt användes skrivs automatiskt ut
+(<mark>Randomness seeded to:</mark>) när något går snett:</p>
+
+<pre class="output"><span class="prompt">$</span> ./test-main --rng-seed time
+
+Randomness seeded to: 1506591481
+
+-------------------------------------------------------------------------------
+for all n: factorial(n) &gt;= 1
+-------------------------------------------------------------------------------
+test-factorial.cpp:11
+...............................................................................
+
+test-factorial.cpp:13: <span class="red">FAILED:</span>
+  <span class="assertion">REQUIRE( factorial(n) &gt;= 1 )</span>
+with expansion:
+  <span class="expansion">0 &gt;= 1</span>
+
+<span class="red">==========================</span><span class="green">=====================================================</span>
+test cases: 3 | <span class="green">2 passed</span> | <span class="red">1 failed</span>
+assertions: 3 | <span class="green">2 passed</span> | <span class="red">1 failed</span>
+<span class="end prompt">$</span>
+</pre>
+
+<p>Och gå snett var precis vad det gjorde här... <code>0 &gt;= 1</code>?</p>
+
+<p>Att skriva testfallet utifrån "ett godtyckligt n" gör det nödvändigt att
+också fundera på vilka värden av <code>n</code> funktionen ska vara definierad för (vad
+den har för domän). I princip (rent matematiskt) är den definierad för alla
+naturliga tal (ℕ = {0, 1, 2, …}). Så egentligen borde nog <code>n</code> (och returtypen)
+vara <code>unsigned</code>. Ett annat problem är att faktorial-funktionen växer otroligt
+fort, och redan <code>10! = 3,628,800</code>. Om vi för enkelhetens skull antar att en
+<code>int</code> alltid är 32 bit, vad händer då om <code>n</code> är 15, eller 20, eller 400? Så om
+vi ska returnera en 32 bit <code>int</code>, då kan vi inte låta <code>n</code> vara hur stort som
+helst, för annars får resultatet inte plats. Om vi har tur får vi ett negativt
+värde så att det är uppenbart att det är fel svar; om vi har otur får vi ett
+felaktigt positivt värde. Som tur är kan vi räkna ut att <code>12! &lt; 2³² &lt; 13!</code>. Så
+hur gör vi om <code>n &lt;= 0</code> eller <code>n &gt; 12</code>?</p>
+
+<p>Till att börja med måste vi uppdatera testet så att vi begränsar vilka värden
+som används. Det är ju ingen idé att kolla så att funktionen fungerar korrekt
+med ett värde för vilket det inte kan fungera korrekt.
+Sedan föreslår jag att kasta ett undantag. Det kan vi kolla med <code>REQUIRE_THROWS</code>:</p>
+
+<pre><code>    TEST_CASE("n &lt; 0 should throw error") {
+      REQUIRE_THROWS(factorial(-1));
+    }
+    TEST_CASE("n &gt; 12 should throw error") {
+      REQUIRE_THROWS(factorial(13));
+    }
+</code></pre>
+
+<p>Innan vi uppdaterar implementationen av <code>factorial</code> får vi följande resultat:</p>
+
+<pre class="output">test-factorial.cpp:23: <span class="red">FAILED:</span>
+  <span class="assertion">REQUIRE_THROWS( factorial(-1) )</span>
+because no exception was thrown where one was expected:
+</pre>
+
+<p>och</p>
+
+<pre class="output">test-factorial.cpp:27: <span class="red">FAILED:</span>
+  <span class="assertion">REQUIRE_THROWS( factorial(13) )</span>
+because no exception was thrown where one was expected:
+</pre>
+
+<p>Efter att ha justerat implementationen fungerar allt som det ska (79a6a04):</p>
+
+<pre class="output"><span class="prompt">$</span> ./test-main --rng-seed time
+<span class="green">===============================================================================
+All tests passed</span> (6 assertions in 6 test cases)
+<span class="end prompt">$</span>
+</pre>
+
+<h3>Mer avancerade funktionalitet</h3>
+
+<p>En trevlig egenskap hos en "riktig" (i matematisk bemärkelse) funktion är att
+det finns ett väldefinierat förhållande mellan input och output. Det underlättar
+bland annat i testningen, och vi såg att det i exemplet hittills blev väldigt
+enkla testfall som helt enkelt bara jämför två värden. Ofta arbetar vi däremot
+inte med sanna funktioner utan det som kanske hellre borde kallas procedurer
+eller (sub)rutiner, dvs saker som <strong>gör</strong> något. Med andra ord, givet ett visst
+tillstånd händer något som gör att vi får ett annat tillstånd som resultat. Så
+istället för värden som motsvarar input-output har vi värden (tillstånd) som
+representerar före-efter. För att illustrera det ska vi titta på en enkel
+implementation av en stack. Jag kommer att utveckla den enligt den striktare
+varianten av TDD för att illustrera det arbetssättet på samma gång som jag
+förklarar hur man kan använda Catch.</p>
+
+<p></p><aside>Egentligen borde vi ju använda "stapel" eftersom en "stack" på svenska
+är något helt annat än en "stack" på engelska. Men tyvärr är det en av de där
+termerna som har importerats direkt från engelskan, fått ett svenskt uttal, och
+fastnat, ungefär som "publik" för att mena "offentlig" istället för
+åhörarskara.</aside><p></p>
+
+<p>Vi börjar med att beskriva en stack, alltså de krav vi har på hur den ska
+fungera.</p>
+
+<ul>
+<li>Den ska kunna ha (hålla reda på, eller lagra) ett godtyckligt antal element.</li>
+<li>Den ska vara en LIFO-struktur (Last-In-First-Out), så att element läggs till och tas bort "överst" på stapeln.</li>
+<li>Det ska gå att se hur många element som just nu finns lagrade.</li>
+<li>Det ska gå att se om den är tom.</li>
+<li>Att försöka ta bort/hämta ett element är meningslöst och ska räknas som ett fel.</li>
+</ul>
+
+<p>Mer exakt (specifikation):</p>
+
+<ul>
+<li>Det ska finnas en metod <code>stack.empty()</code> som returnerar <code>true</code> när stacken är tom, och <code>false</code> annars.</li>
+<li>Det ska finnas en metod <code>stack.size()</code> som returnerar antalet element i stapeln.</li>
+<li>Det ska finnas en metod <code>stack.push(e)</code> som lägger till elementet <code>e</code> "överst" på stapeln.</li>
+<li>Det ska finnas en metod <code>stack.pop()</code> som tar bort det "översta" elementet och returnerar det, eller kastar ett undantag om stacken är tom.</li>
+</ul>
+
+<p></p><aside>En liten "varning": Man skulle kunna påstå att jag överdriver lite i
+exemplet som följer. Jag tar extremt små steg, och det kan säkert ibland se ut
+som om fake-implementationerna är fåniga och helt onödiga, eftersom det ofta
+vore trivialt att göra rätt på en gång - "vem skulle koda sådär på riktigt!?"
+Syftet är dock att illustrera en viss teknik, eller ett visst sätt att arbeta
+på.  Kom ihåg att tanken är att testerna ska styra, och vi vill inte
+implementera mer än vad som krävs för att testerna ska bli gröna. Om vi kan
+"implementera" en funktion genom att returnera ett hårdkodat värde eller inte
+göra något alls, ja då duger det uppenbarligen enligt testerna.</aside><p></p>
+
+<p>Jag rekommenderar starkt att du följer med i <a href="https://bitbucket.org/miundsv/ex-tdd-with-catch-improvised-stack/src">koden</a>. Kör testerna själv
+och experimentera. Du kan även använda <code>git diff</code> för att lättare se vilka
+ändringar jag har gjort vid olika tillfällen. (Jag länkar löpande till olika
+commit.)</p>
+
+<p>Vad är den enklaste funktionaliteten jag kan testa? Jag föreslår <code>empty</code>.
+Skapar jag en ny, tom stack bör den vara tom
+(<span class="red commit"><a href="https://bitbucket.org/miundsv/ex-tdd-with-catch-improvised-stack/commits/80fcdd98174a01e0c62692224994f0e4e68ef749">80fcdd9</a></span>):</p>
+
+<pre><code>    TEST_CASE("Empty stack should be empty") {
+      Stack&lt;int&gt; stack{};
+      REQUIRE(stack.empty());
+    }
+</code></pre>
+
+<p>Den enklaste tänkbara implementationen för att klara av det här testfallet bör
+vara <code>return true</code>. Däremot vill jag ju först se till att testet faktiskt blir
+rött om jag har gjort fel, för annars är det något knasigt på gång. Så då får
+vi i första hand (<span class="red commit commit"><a href="https://bitbucket.org/miundsv/ex-tdd-with-catch-improvised-stack/commits/80fcdd98174a01e0c62692224994f0e4e68ef749">80fcdd9</a></span>):</p>
+
+<pre><code>    template&lt;typename T&gt;
+    bool Stack&lt;T&gt;::empty() const noexcept {
+      return false;
+    }
+</code></pre>
+
+<p>Mycket riktigt; testet visar att något inte stämmer. Så vi ändrar till <code>return
+true</code> (<span class="green commit"><a href="https://bitbucket.org/miundsv/ex-tdd-with-catch-improvised-stack/commits/3a1393268ed2332b11582646fefc04e710f0a72b">3a13932</a></span>), vilket gör testet grönt. Just nu
+finns det inget refactor-steg - implementationen är 100% fullständig och
+korrekt utifrån de krav testet representerar, och det finns ingen redundans att
+städa upp.</p>
+
+<p></p><aside>Om jag ville göra arbetssättet tydligare skulle jag kunna göra två olika
+"röda" commits för att skilja på testet och implementationen. Jag misstänker
+dock att det är lite väl överdrivet. Dessutom vill jag helst att varje commit
+ska vara körbar.</aside><p></p>
+
+<p>Då kanske det är dags att hantera fallet då stacken inte är tom? Men då måste
+vi antingen lägga till en constructor eller <code>push</code>-metod. Finns det något mer
+vi kan göra med en tom stack? Vi skulle kunna kolla att storleken är 0
+(<span class="red commit"><a href="https://bitbucket.org/miundsv/ex-tdd-with-catch-improvised-stack/commits/250fe08b23f620971ca939a3ae735f7cbde86a8b">250fe08</a></span>):</p>
+
+<pre><code>    TEST_CASE("Empty stack should have zero size") {
+      Stack&lt;int&gt; stack{};
+      REQUIRE(stack.size() == 0);
+    }
+</code></pre>
+
+<p>Lägg märke till att det här är ett separat testfall. Det kan vara frestande att
+se <code>empty() &amp;&amp; size() == 0</code> som i stort sett samma situation, och som två
+påståenden som hör ihop. Dels har vi den där tumregeln som säger att vi bör
+försöka göra ett påstående per testfall. Men varför? En anledning är enbart
+praktisk, och det är att vi vill kunna köra samtliga testfall isolerade från
+varandra, vilket inte går om vi har mer än en <code>REQUIRE</code> per <code>TEST_CASE</code>. (Om
+det här hade varit enda anledning skulle vi kunna lösa det genom att använda
+<code>CHECK</code> istället - mer om det nedan.) En annan anledning är lite mer
+konceptuell, och det är att det faktiskt är två olika saker vi testar - det är
+ju två olika metoder. Det råkar bara vara så att båda är relevanta givet ett
+visst utgångsläge, nämligen en tom stack.</p>
+
+<p>Som vanligt börjar vi med en fake-implementation som <strong>inte</strong> ger rätt svar,
+för att säkerställa att testet fungerar som det ska
+(<span class="red commit"><a href="https://bitbucket.org/miundsv/ex-tdd-with-catch-improvised-stack/commits/250fe08b23f620971ca939a3ae735f7cbde86a8b">250fe08</a></span>):</p>
+
+<pre><code>    template&lt;typename T&gt;
+    unsigned int Stack&lt;T&gt;::size() const noexcept {
+      return -1;
+    }
+</code></pre>
+
+<p>Efter att ha bekräftat att testet misslyckas ändrar vi till <code>return 0</code>
+(<span class="green commit"><a href="https://bitbucket.org/miundsv/ex-tdd-with-catch-improvised-stack/commits/afb7586d1b25b08b3e1707c8b282e0635e682f2f">afb7586</a></span>). Den här gången finns det utrymme för en
+liten städning (<span class="refactor commit"><a href="https://bitbucket.org/miundsv/ex-tdd-with-catch-improvised-stack/commits/4d5ac10b3732a169ffaf47820f489ed5e1655549">4d5ac10</a></span>):</p>
+
+<pre><code>    bool Stack&lt;T&gt;::empty() const noexcept {
+      return size() == 0;
+    }
+</code></pre>
+
+<p>Det fanns en viss redundans i och med att både <code>empty()</code> och <code>size()</code>
+returnerar ett speciellt värde i en speciell situation, och genom att
+implementera den ena (empty) så att den använder den andra (size) elimineras
+den. Dessutom har vi nu en "riktig" implementation av <code>empty()</code>. Den ska ju
+returnera <code>true</code> om, och endast om, <code>size()</code> returnerar <code>0</code> - med andra ord,
+<code>empty()</code> ska ha precis samma värde som <code>size() == 0</code>.</p>
+
+<p>Om vi vill vara riktigt strikta med den här red-green-refactor-loopen får vi
+snart ett litet problem. För att kunna testa <code>pop()</code> måste det ju finnas något
+på stacken. Antingen lägger vi till element när stacken skapas, eller så måste
+vi använda <code>push(e)</code>. I båda fallen är frågan hur vi vet att elementen har
+lagts till på rätt sätt. Jag vet! Vi använder <code>pop()</code> för att se vilka element
+som finns staplade, och i vilken ordning. Men hur vet vi att vi kan lita på att
+<code>pop()</code> fungerar som den ska? Det verkar som att vi blir tvungna att testa
+minst två saker i kombination. Riktigt än behöver vi i alla fall inte ge upp!
+Vi har fortfarande en tom stack, och vad var det <code>pop()</code> skulle göra då?
+<span class="red commit"><a href="https://bitbucket.org/miundsv/ex-tdd-with-catch-improvised-stack/commits/b4b45d90e6ba2bda62a650befc2cde444b3a47d0">b4b45d9</a></span>:</p>
+
+<pre><code>    TEST_CASE("pop() should throw when stack is empty") {
+      Stack&lt;int&gt; stack{};
+      REQUIRE_THROWS(stack.pop());
+    }
+</code></pre>
+
+<p>För att kunna ha en felaktig implementation behövs ett <code>return</code>. Så jag
+använder en temporär dummy-variabel (<span class="red commit"><a href="https://bitbucket.org/miundsv/ex-tdd-with-catch-improvised-stack/commits/b4b45d90e6ba2bda62a650befc2cde444b3a47d0">b4b45d9</a></span>):</p>
+
+<pre><code>    int dummy = 3;
+    // ...
+    template&lt;typename T&gt;
+    T&amp; Stack&lt;T&gt;::pop() {
+      return dummy;
+    }
+</code></pre>
+
+<p>Uppenbarligen kastas inget undantag, och testet blir därför rött. Så nu kan jag
+ta bort <code>dummy</code>-variabeln och ersätta implementationen med <code>throw
+std::range_error{"Can't pop empty stack"}</code>
+(<span class="green commit"><a href="https://bitbucket.org/miundsv/ex-tdd-with-catch-improvised-stack/commits/159eb3eedf3e163d5848cadad8e4b95a6aa9fd7f">159eb3e</a></span>).</p>
+
+<p>Ok, nu har vi nog testat allt vi kan med en tom stack, och det börjar vara dags
+att lägga till element på något sätt. Så då kommer vi att behöva något
+lagringsutrymme? Inte så fort. Vad händer när vi använder <code>push(e)</code>? Ett
+element ska läggas till överst på stapeln, <strong>vilket innebär att den inte längre
+är tom</strong>. Alltså ska <code>size()</code> och <code>empty()</code> ge andra resultat
+(<span class="red commit"><a href="https://bitbucket.org/miundsv/ex-tdd-with-catch-improvised-stack/commits/6222f8dd2873196d56115237089c8a3fccfcef55">6222f8d</a></span>):</p>
+
+<pre><code>    TEST_CASE("after pushing an element, the stack should not be empty") {
+      Stack&lt;int&gt; stack{};
+      stack.push(3);
+      REQUIRE_FALSE(stack.empty());
+    }
+    TEST_CASE("after pushing an element, its size should be 1") {
+      Stack&lt;int&gt; stack{};
+      stack.push(3);
+      REQUIRE(stack.size() == 1);
+    }
+</code></pre>
+
+<p>Lägg märke till <code>REQUIRE_FALSE(stack.empty())</code>. Effekten är i stort sett samma
+som <code>REQUIRE(!stack.empty())</code>. Prova att ändra och kolla om du ser någon
+skillnad i utskriften! Man skulle kunna påstå att det här testfallet inte är
+strikt nödvändigt, men man skulle också kunna påstå att vi skulle förlita oss
+för mycket på implementationsdetaljer om vi skippar det. (Vi testar ju redan
+<code>empty()</code> genom att testa <code>size()</code>, men om vi skulle ändra implementationen av
+<code>empty()</code> då, så att den inte längre använder <code>size()</code>, kan vi lita på att
+testerna fångar eventuella misstag?)</p>
+
+<p>Den implementationen vi har misslyckas redan med testet. Så vi kan fokusera på
+att få det att fungera istället. Det här är första gången vår stack faktiskt
+måste ändra tillstånd. Det betyder däremot inte att vi "redan nu" måste lägga
+till någon minneshantering. Än så länge är vi ju fortfarande bara intresserade
+av hur storleken ändras (<span class="green commit"><a href="https://bitbucket.org/miundsv/ex-tdd-with-catch-improvised-stack/commits/c4f42ab41e68feb6e02bf823010ee4d7629fc3a4">c4f42ab</a></span>):</p>
+
+<pre><code>      private:
+        bool empty_flag{true};
+    // ...
+    unsigned int Stack&lt;T&gt;::size() const noexcept {
+      return empty_flag ? 0 : 1;
+    }
+    // ...
+    void Stack&lt;T&gt;::push(const T&amp; e) noexcept {
+      empty_flag = false;
+    }
+</code></pre>
+
+<p>Jag har alltså lagt till en variabel <code>empty_flag</code> som sätts till <code>false</code> av <code>push(e)</code>.</p>
+
+<p>Däremot kräver vi ju inte bara att <code>push(e)</code> ska göra stacken "o-tom", utan
+storleken ska öka för varje push (<span class="red commit"><a href="https://bitbucket.org/miundsv/ex-tdd-with-catch-improvised-stack/commits/96a2aac9467e32b602893f981c7ca1f4d6db0843">96a2aac</a></span>):</p>
+
+<pre><code>    TEST_CASE("after pushing n elements, the size should be n") {
+      Stack&lt;int&gt; stack{};
+      stack.push(3);
+      stack.push(3);
+      stack.push(3);
+      REQUIRE(stack.size() == 3);
+    }
+</code></pre>
+
+<p>I <span class="green commit"><a href="https://bitbucket.org/miundsv/ex-tdd-with-catch-improvised-stack/commits/e791145d24b3d2094de16992deb25e9f078f30af">e791145</a></span> har jag lagt till en variabel <code>sz</code> (för
+"size") som ökar varje gång push anropas. Efter det är det också dags för lite
+refactoring (<span class="refactor commit"><a href="https://bitbucket.org/miundsv/ex-tdd-with-catch-improvised-stack/commits/4d1e4336a17a1d188782d79043f1c92f69ee46cc">4d1e433</a></span>):</p>
+
+<pre><code>    // ...
+    unsigned int Stack&lt;T&gt;::size() const noexcept {
+      return sz;
+    }
+    // ...
+    void Stack&lt;T&gt;::push(const T&amp; e) noexcept {
+      sz++;
+    }
+</code></pre>
+
+<p>Om vi sedan kör en <code>pop()</code> ska storleken minska igen
+(<span class="red commit"><a href="https://bitbucket.org/miundsv/ex-tdd-with-catch-improvised-stack/commits/543160d9c6305a49e5dd5f2da28a73aa408c4d9e">543160d</a></span>):</p>
+
+<pre><code>    TEST_CASE("each pop should reduce the size") {
+      Stack&lt;int&gt; stack{};
+      stack.push(3);
+      stack.push(3);
+      stack.push(3);
+      stack.pop();
+      CHECK(stack.size() == 2);
+      stack.pop();
+      CHECK(stack.size() == 1);
+      stack.pop();
+      CHECK(stack.size() == 0);
+    }
+</code></pre>
+
+<p>Här har jag använt mig av <code>CHECK</code> istället för <code>REQUIRE</code>. Skillnaden är att
+<code>CHECK</code> inte gör att testfallet avbryts så fort något går snett. Alternativet
+vore att ha ett flertal testfall med olika antal push/pop. Testet är
+naturligtvis rött, eftersom vår implementation av <code>pop()</code> alltid kastar ett
+undantag. Nu måste vi alltså skilja på om stacken faktiskt är tom eller inte.
+Dessutom måste storleken ändras. För att koden ska kompilera måste också
+<strong>något</strong> returneras, men just nu bryr vi oss inte om vad det är, så <code>sz</code> får
+duga tills vidare (<span class="green commit"><a href="https://bitbucket.org/miundsv/ex-tdd-with-catch-improvised-stack/commits/2860d708e12c53b5d86639409d876de32b913a7c">2860d70</a></span>):</p>
+
+<pre><code>    // ...
+    T&amp; Stack&lt;T&gt;::pop() {
+      if (empty()) {
+        throw std::range_error{"Can't pop empty stack"};
+      }
+      sz--;
+      return sz; // need to return something
+    }
+</code></pre>
+
+<p>Ok, nu har vi testat allt utom att faktiskt lägga till/ta bort element. Det går
+inte att se från utsidan vad <code>push(e)</code> gör, eftersom den inte returnerar något
+värde utan bara har en bieffekt som gör att stackens tillstånd ändras. En av
+effekterna är att storleken ökar, och det har vi redan testfall för. Den andra
+effekten är att <code>pop()</code> påverkas. Efter <code>push(e)</code> ska vi ju ha <code>pop() == e</code>
+(<span class="red commit"><a href="https://bitbucket.org/miundsv/ex-tdd-with-catch-improvised-stack/commits/1e3e8d6ede5cad449d40e125254996f4d2aa7b13">1e3e8d6</a></span>):</p>
+
+<pre><code>    TEST_CASE("pop() should return what was push()-ed") {
+      Stack&lt;int&gt; stack{};
+      stack.push(42);
+      REQUIRE(stack.pop() == 42);
+    }
+</code></pre>
+
+<p>Eftersom <code>pop()</code> returnerar <code>sz</code> blir testet rött. Genom att lägga till en
+variabel som får hålla det senaste värdet fungerar kombinationen av <code>push(e)</code>
+och <code>pop()</code> (<span class="green commit"><a href="https://bitbucket.org/miundsv/ex-tdd-with-catch-improvised-stack/commits/81a6029249cb21944b75818e9c675f7d31995412">81a6029</a></span>):</p>
+
+<pre><code>    // ...
+    void Stack&lt;T&gt;::push(const T&amp; e) noexcept {
+      top = e;
+      sz++;
+    }
+    // ...
+    T&amp; Stack&lt;T&gt;::pop() {
+      if (empty()) {
+        throw std::range_error{"Can't pop empty stack"};
+      }
+      sz--;
+      return top;
+    }
+    // ...
+</code></pre>
+
+<p>Vi vill naturligtvis inte bara kunna lägga till ett enda element
+(<span class="red commit"><a href="https://bitbucket.org/miundsv/ex-tdd-with-catch-improvised-stack/commits/3c61e474f12554149ec7b0f058d18087777438d3">3c61e47</a></span>):</p>
+
+<pre><code>    TEST_CASE("pop() should return all push()-ed elements in reverse order") {
+      Stack&lt;int&gt; stack{};
+      stack.push(42);
+      stack.push(3);
+      stack.push(17);
+      REQUIRE(stack.pop() == 17);
+      REQUIRE(stack.pop() == 3);
+      REQUIRE(stack.pop() == 42);
+    }
+</code></pre>
+
+<p>Så tydligen behövs något sätt att spara mer än ett element
+(<span class="green commit"><a href="https://bitbucket.org/miundsv/ex-tdd-with-catch-improvised-stack/commits/2a0b716d89f1fc66cee2461c3bf7ca8cd577a331">2a0b716</a></span>):</p>
+
+<pre><code>    // ...
+      private:
+        int sz{0};
+        T elems[3];
+        int top{0};
+    // ...
+    T&amp; Stack&lt;T&gt;::pop() {
+      if (empty()) {
+        throw std::range_error{"Can't pop empty stack"};
+      }
+      sz--;
+      return elems[--top];
+    }
+    // ...
+    void Stack&lt;T&gt;::push(const T&amp; e) noexcept {
+      elems[top++] = e;
+      sz++;
+    }
+</code></pre>
+
+<p>Nu finns det plötsligt en hel del städande att göra. Lägg märke till att <code>sz</code>
+och <code>top</code> båda börjar med värdet <code>0</code>, och båda minskar i <code>push(e)</code> och ökar i
+<code>pop()</code>. Så det ser ut som om vi borde kunna klara oss med bara en, och i
+<span class="refactor commit"><a href="https://bitbucket.org/miundsv/ex-tdd-with-catch-improvised-stack/commits/d06c502a4d23f35ef34398f3d3767f1d08e7c88d">d06c502</a></span> tar vi därför bort <code>sz</code>. Dessutom har vi
+bara gått från 1 till 3 möjliga element. Vi kan se det som att <code>3</code> upprepas i
+testkoden och produktionskoden, och att vi tar bort den redundansen genom att
+gör produktionskoden mer generell (<span class="refactor commit"><a href="https://bitbucket.org/miundsv/ex-tdd-with-catch-improvised-stack/commits/21b749d7dd3a7b4c29d4847208897533c9594199">21b749d</a></span>):</p>
+
+<pre><code>    // ...
+    Stack&lt;T&gt;::Stack() {
+      elems = new T[capacity];
+    }
+    // ...
+    Stack&lt;T&gt;::~Stack() {
+      delete[] elems;
+    }
+    // ...
+    void Stack&lt;T&gt;::push(const T&amp; e) noexcept {
+      // First grow if necessary.
+      if (top &gt;= capacity) {
+        auto old_elems = elems;
+        auto new_cap = capacity*2;
+        auto new_elems = new T[new_cap];
+        std::copy(old_elems, old_elems+capacity, new_elems);
+        capacity = new_cap;
+        elems = new_elems;
+        delete[] old_elems;
+      }
+      elems[top++] = e;
+    }
+</code></pre>
+
+<p>Nu när minne allokeras dynamiskt har vi en fungerande implementation av en
+enkel stack. (En av flera brister är att den inte är trådsäker.)</p>
+
+<p>Det finns många saker som hade kunnat göras annorlunda. Till exempel hade vi
+också kunnat börja i andra änden med att kontrollera att det går att lägga till
+och sedan hämta ett värde, utan att tänka på antal element. Stegen hade då
+antagligen sett helt annorlunda ut eftersom nästa steg påverkas av alla som
+togs innan. Man skulle till och med delvis kunna ta ännu mindre steg än vad jag
+gjorde här. Under själva programmeringen hoppar man ju fram och tillbaka mellan
+test- och produktionskod mycket fortare, utan att hela tiden behöva kommentera
+vad man har gjort och varför, och framför allt skulle man inte göra en commit
+för varje liten ändring.</p>
+
+<hr>
+
+<p>Vi är däremot inte riktigt färdiga med testerna. Där finns nämligen en del att
+städa upp, eller i alla fall en del utrymme för att göra saker på ett annat
+sätt.</p>
+
+<p>Till att börja med ska vi titta på <code>SECTION</code> och det här med "setup" och
+"cleanup". Lägg märke till att vi har <code>Stack&lt;int&gt; stack{}</code> i vartenda testfall,
+och många har även <code>stack.push(3)</code>. En <code>SECTION</code> delar upp ett testfall i, ja,
+sektioner. Man kan ha flera sektioner i varandra, som då bildar en
+trädstruktur. Varje "löv-sektion" körs exakt en gång och isolerat från alla
+andra. Det innebär att, för varje "löv-sektion" som körs, så körs samtliga
+sektioner från trädets rot till lövet en gång. Vi kan demonstrera det med ett
+litet experiment:</p>
+
+<pre><code>    TEST_CASE("Testing sections...") {
+      cout &lt;&lt; "TEST_CASE {" &lt;&lt; endl;
+      SECTION("SECTION 1") {
+        cout &lt;&lt; "  SECTION 1 {" &lt;&lt; endl;
+        cout &lt;&lt; "  }" &lt;&lt; endl;
+      }
+      SECTION("SECTION 2") {
+        cout &lt;&lt; "  SECTION 2 {" &lt;&lt; endl;
+        SECTION("SECTION 2.1") {
+          cout &lt;&lt; "    SECTION 2.1 {" &lt;&lt; endl;
+          cout &lt;&lt; "    }" &lt;&lt; endl;
+        }
+        cout &lt;&lt; "  }" &lt;&lt; endl;
+      }
+      SECTION("SECTION 3") {
+        cout &lt;&lt; "  SECTION 3 {" &lt;&lt; endl;
+        SECTION("SECTION 3.1") {
+          cout &lt;&lt; "    SECTION 3.1 {" &lt;&lt; endl;
+          cout &lt;&lt; "    }" &lt;&lt; endl;
+        }
+        SECTION("SECTION 3.2") {
+          cout &lt;&lt; "    SECTION 3.2 {" &lt;&lt; endl;
+          SECTION("SECTION 3.2.1") {
+            cout &lt;&lt; "      SECTION 3.2.1 {" &lt;&lt; endl;
+            cout &lt;&lt; "      }" &lt;&lt; endl;
+          }
+          SECTION("SECTION 3.2.2") {
+            cout &lt;&lt; "      SECTION 3.2.2" &lt;&lt; endl;
+            cout &lt;&lt; "      }" &lt;&lt; endl;
+          }
+          cout &lt;&lt; "    }" &lt;&lt; endl;
+        }
+        cout &lt;&lt; "  }" &lt;&lt; endl;
+      }
+      cout &lt;&lt; "}" &lt;&lt; endl;
+    }
+</code></pre>
+
+<p>Den koden ger följande utskrift när "testet" körs:</p>
+
+<pre><code>    TEST_CASE {
+      SECTION 1 {
+      }
+    }
+    TEST_CASE {
+      SECTION 2 {
+        SECTION 2.1 {
+        }
+      }
+    }
+    TEST_CASE {
+      SECTION 3 {
+        SECTION 3.1 {
+        }
+      }
+    }
+    TEST_CASE {
+      SECTION 3 {
+        SECTION 3.2 {
+          SECTION 3.2.1 {
+          }
+        }
+      }
+    }
+    TEST_CASE {
+      SECTION 3 {
+        SECTION 3.2 {
+          SECTION 3.2.2
+          }
+        }
+      }
+    }
+</code></pre>
+
+<p>"Löv-sektionerna" är sektionerna 1, 2.1, 3.1, 3.2.1, och 3.2.2. Lägg märke till
+att sektion 3.2 har två "barn", och därför körs 2 gånger. Sektion 3 körs tre
+gånger eftersom det har två barn, varav ett är 3.2 (som vi just kom fram till
+måste köras två gånger eftersom det i sin tur också har två barn). Till sist
+ser vi att hela testfallet körs totalt fem gånger - en gång för varje "löv".
+Med andra ord har ett testfall förvandlats till fem stycken, vart och ett
+bestående av olika kombinationer av sektioner.</p>
+
+<p>Vi kan utnyttja det här för att återanvända koden som ställer i ordning stacken
+som ska användas i testfallet. Se <a href="https://bitbucket.org/miundsv/ex-tdd-with-catch-improvised-stack/commits/4294920a6c5ef731145fd504525e173da1241e4e">4294920</a>. Prova till exempel att ändra stack.h
+så att <code>pop()</code> inte längre minskar <code>top</code> (dvs, ändra <code>return elems[--top]</code> till
+<code>return elems[top]</code>). Då bör du få bland annat följande resultat:</p>
+
+<pre class="output">-------------------------------------------------------------------------------
+Starting with an empty stack
+  Pushing and popping changes size
+  Starting with 1 push
+  Starting with two more (total of 3) pushes
+  each pop should reduce the size
+-------------------------------------------------------------------------------
+test-stack.cpp:54
+...............................................................................
+
+test-stack.cpp:56: <span class="red">FAILED:</span>
+  <span class="assertion">CHECK( stack.size() == 2 )</span>
+with expansion:
+  <span class="expansion">3 == 2</span>
+</pre>
+
+<p></p><aside>Det går också att köra testprogrammet med <code>--success</code> (eller <code>-s</code>) för
+att tvinga Catch att alltid skriva ut en detaljerad rapport även när allt är
+grönt (till exempel <code>./test-main --success</code>).</aside><p></p>
+
+<p>Vi kan däremot ta den här mekanismen med sektioner mycket längre.  Låt oss
+upprepa specifikationen vi hade tidigare, men uttrycka den på ett lite annat
+sätt:</p>
+
+<ul>
+<li>Givet en tom stack, då ska <code>stack.empty()</code> vara <code>true</code>.</li>
+<li>Givet en tom stack, då ska <code>stack.size()</code> vara <code>0</code>.</li>
+<li>Givet en tom stack, då ska <code>stack.pop()</code> kasta ett undantag.</li>
+<li>Givet en stack med n element, när <code>stack.push(e)</code> anropas, då ska <code>stack.empty()</code> vara <code>false</code>.</li>
+<li>Givet en stack med n element, när <code>stack.push(e)</code> anropas, då ska <code>stack.size()</code> vara <code>n + 1</code>.</li>
+<li>Givet en stack med n element, när <code>stack.push(e)</code> anropas, då ska <code>stack.pop()</code> vara <code>e</code>.</li>
+<li>Givet en stack med n ≥ 1 element, när <code>stack.pop()</code> anropas, då ska <code>stack.size()</code> vara <code>n - 1</code>.</li>
+</ul>
+
+<p>Om vi skulle justera lite hur testfall och sektioner beskrivs skulle det nästan
+kunna låta som en specifikation! Jämför listan ovan med <a href="https://bitbucket.org/miundsv/ex-tdd-with-catch-improvised-stack/commits/8114863ebd13f0d17daf4ceabc577860c2a85537">8114863</a>, som bland
+annat ger följande utskrift när jag introducerar samma fel som tidigare:</p>
+
+<pre class="output">Given an empty stack,
+  and that a value has been pushed,
+  pop() should return that value.
+-------------------------------------------------------------------------------
+test-stack.cpp:40
+...............................................................................
+
+test-stack.cpp:41: <span class="red">FAILED:</span>
+  <span class="assertion">REQUIRE( stack.pop() == 3 )</span>
+with expansion:
+  <span class="expansion">0 == 3</span>
+</pre>
+
+<p>Lägg framför allt märke till <mark>"Given an empty stack, and that a value has
+been pushed, pop() should raturn that value."</mark></p>
+
+<h4>BDD</h4>
+
+<p>Det är vanligt att man beskriver delarna, eller faserna, av ett testfall med
+AAA, som står för <strong>A</strong>rrange, <strong>A</strong>ct, <strong>A</strong>ssert. <em>Arrange</em> syftar på att man
+"ställer i ordning" saker. Alltså man skapar utgångsläget, eller
+starttillståndet. <em>Act</em> syftar på att produktionskoden får göra något; metoder
+anropas, procedurer körs, funktioner returnerar värden, osv. <em>Assert</em> syftar på
+att resultatet jämförs med det som förväntades. Här kollar man till exempel om
+stackens storlek förändrades på rätt sätt, eller om <code>pop()</code> returnerade det
+översta elementet.</p>
+
+<p>Ett annat sätt att uttrycka samma sak är "Given … when … then …". Så <em>givet</em>
+ett visst tillstånd (arrange), <em>när</em> något utförs (act), <em>då</em> förväntas
+följande slutresultat (assert). Den här stilen används i BDD, som står för
+Behavior-Driven Development. En del menar att BDD helt enkelt är korrekt utförd
+TDD. Catch har varianter av <code>TEST_CASE</code> och <code>SECTION</code> som i stort sett bara är
+alias, men som gör det lättare/tydligare att uttrycka testfall i den här
+stilen. Den enda skillnaden är läsbarhet, både i koden och i utskrifterna.</p>
+
+<p>Vi översätter senaste versionen av testerna för att använda <code>SCENARIO</code>
+(istället för <code>TEST_CASE</code>) och <code>GIVEN</code>, <code>WHEN</code>, och <code>THEN</code> (istället för
+<code>SECTION</code>) (<a href="https://bitbucket.org/miundsv/ex-tdd-with-catch-improvised-stack/commits/936178b447c81980c92535ce09707b24fb968cd2">936178b</a>):</p>
+
+<pre><code>    // ...
+    SCENARIO("Pushing and popping a single value") {
+      GIVEN("an empty stack") {
+        Stack&lt;int&gt; stack{};
+        WHEN("a value has been pushed") {
+          stack.push(3);
+          THEN("it should no longer be empty.") {
+            REQUIRE_FALSE(stack.empty());
+          }
+          THEN("its size should be 1.") {
+            REQUIRE(stack.size() == 1);
+          }
+          THEN("pop() should return that value.") {
+            REQUIRE(stack.pop() == 3);
+          }
+        }
+      }
+    }
+    // ...
+</code></pre>
+
+<p>Provkör testet och undersök vilka testfall som genereras (genom att använda
+<code>--success</code> eller sabotera implementationen och se vilka felmeddelanden du
+får)!</p>
+
+<p>Ytterligare en annan version finns i <a href="https://bitbucket.org/miundsv/ex-tdd-with-catch-improvised-stack/commits/2f1ce51b69b489e3fb14f0b0f666797232840fe2">2f1ce51</a>. Den är delvis bättre och delvis
+sämre. Till viss del är det en smaksak vad man tycker är tydligare, eller vilka
+egenskaper man lägger större värde på. I första hand ville jag visa några olika
+sätt att uttrycka (i stort sett) samma sak, och framför allt vad man kan göra
+med Catch. Ena scenariot går troligtvis för långt med att maximera
+återanvändningen av kod. Sista versionen (<a href="https://bitbucket.org/miundsv/ex-tdd-with-catch-improvised-stack/commits/2219647e04ec6c029b603f5694768444f3d95950">2219647</a>) är nog snyggare.
+Dessutom slumpar jag fram värden så att vi kan testa en stack med n element.</p>
+
+<p>Det finns många fler detaljer när det gäller Catch, men nu bör du ha koll på
+det viktigaste så att du kan <a href="https://github.com/philsquared/Catch/blob/master/docs/Readme.md">utforska resten på egen
+hand</a>. Nu har
+du också sett ett ganska utförligt exempel på hur det skulle kunna se ut när
+man använder TDD i praktiken. Jag rekommenderar också <em>Test-Driven Development
+By Example</em>, av Kent Beck.</p>
+
+<p><a rel="license" href="http://creativecommons.org/licenses/by-sa/4.0/"><img alt="Creative Commons License" style="border-width:0" src="./TDD med Catch_files/88x31.png"></a>
+<br>
+Christoffer Fink, 2017
+<br>This work is licensed under a <a rel="license" href="http://creativecommons.org/licenses/by-sa/4.0/">Creative Commons Attribution-ShareAlike 4.0 International License</a>.</p>
+
+<p>
+</p>
+<div id="viewPortSize" class="bottom_right" style="display: none; background-color: rgb(0, 0, 0); color: rgb(255, 255, 255); font-size: 12px;"></div></body></html>
